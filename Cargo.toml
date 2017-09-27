@@ -1,0 +1,12 @@
+[package]
+name = "asmuth_bloom_secret_sharing"
+description = "Asmuth Bloom secret sharing algorithm base on Chinese Reminder Theorem"
+version = "0.1.0"
+authors = ["Ivan Zderadicka <ivan@zderadicka.eu>"]
+license = "MIT/Apache-2.0"
+
+
+[dependencies]
+num = "0.1.40"
+quick-error = "1.2.0"
+rand = "0.3"
