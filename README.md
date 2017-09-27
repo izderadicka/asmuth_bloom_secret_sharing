@@ -1,5 +1,7 @@
 # Asmuth-Bloom Secret Sharing
 
+[![Build Status](https://travis-ci.org/izderadicka/asmuth_bloom_secret_sharing.svg?branch=master)](https://travis-ci.org/izderadicka/asmuth_bloom_secret_sharing)
+
 [Asmuth-Bloom algorithm] (https://en.wikipedia.org/wiki/Secret_sharing_using_the_Chinese_remainder_theorem#Asmuth-Bloom.27s_threshold_secret_sharing_scheme) implemented in Rust.
 
 My learning exercise so cannot guarantee that it's bullet-proof. If you intend to you it in your project I recommend to review the code ( or use some proven Shamir secret sharing library, as Asmuth Bloom is bit obscure - but theoretically fine).
