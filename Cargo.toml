@@ -6,7 +6,7 @@ authors = ["Ivan Zderadicka <ivan@zderadicka.eu>"]
 license = "MIT/Apache-2.0"
 homepage = "https://github.com/izderadicka/asmuth_bloom_secret_sharing"
 documentation = "https://docs.rs/asmuth_bloom_secret_sharing"
-categories = [ "cryptography" ]\
+categories = [ "cryptography" ]
 keywords = [
   "secret-sharing",
   "Asmuth-Bloom",
