@@ -2,15 +2,31 @@ extern crate num;
 #[macro_use]
 extern crate quick_error;
 extern crate rand;
-
-use num::bigint::{BigInt, BigUint, RandBigInt, ToBigInt, ToBigUint};
-use num::traits::{One, Zero};
+use num::bigint::{BigInt, BigUint, RandBigInt, ToBigInt, ToBigUint, ParseBigIntError};
+use num::traits::{One, Zero, Num};
 use rand::os::OsRng;
+use std::string::ToString;
+use std::str::FromStr;
 
 mod ops;
-
 use ops::{miller_rabin_test, pow};
 
+quick_error! {
+    #[derive(Debug)]
+    pub enum Error {
+        NotEnoughShares {}
+        SecretTooLong {}
+        StringFormatError {}
+        N0NotSameInAllShares {}
+        NoSharesInString {}
+        NumberFormatError(err: ParseBigIntError ) {
+            from()
+            cause(err)
+        }
+    }
+}
+
+type ShareResult<T> = Result<T, Error>;
 
 pub struct BigPrimesGenerator {
     last_odd: BigUint,
@@ -70,9 +86,63 @@ pub struct AsmuthBloomRecover {
 }
 
 /// Structure representing shared secret
+#[derive(Debug)]
 pub struct ABSharedSecret {
     n0: BigUint,
     shares: Vec<(BigUint, BigUint)>,
+}
+
+impl ToString for ABSharedSecret {
+    fn to_string(&self) -> String {
+        let mut res = String::new();
+        let n0 = self.n0.to_str_radix(32);
+        for  s in &self.shares {
+            let v = s.0.to_str_radix(32);
+            let n = s.1.to_str_radix(32);
+            res.push_str(&format!("{}:{}:{}", n0, n, v ));
+            res.push_str("\n")
+        }
+        res
+    }
+}
+
+impl FromStr for ABSharedSecret {
+    type Err = Error;
+    fn from_str(s:&str) -> Result<Self, Self::Err> {
+        let mut n0 = None;
+        let mut shares = vec![];
+
+        for line in s.lines() {
+            let parts: Vec<_> = line.split(":").take(3).map(|s| s.trim()).collect();
+            if parts.len() != 3 {
+                return Err(Error::StringFormatError)
+            }
+
+            let n0_tmp = BigUint::from_str_radix(parts[0], 32)?;
+            let v = BigUint::from_str_radix(parts[2], 32)?;
+            let n = BigUint::from_str_radix(parts[1], 32)?;
+
+            shares.push((v,n));
+
+            if n0.is_none() {
+                n0 = Some(n0_tmp);
+            } else {
+                if n0_tmp != *n0.as_ref().unwrap() {
+                    return Err(Error::N0NotSameInAllShares)
+                }
+            }
+
+        }
+
+        if n0.is_none() {
+            Err(Error::NoSharesInString)
+        } else {
+            Ok(Self {
+                n0:n0.unwrap() ,
+                shares
+            })
+        }
+    }
 }
 
 fn gen_primes(min_n1_bits: u16, n: u16, error_level: f64) -> Vec<BigUint> {
@@ -94,7 +164,7 @@ fn test_primes(n0: &BigUint, primes: &Vec<BigUint>, k: u16) -> bool {
 
 impl AsmuthBloomShare {
     /// Creates new object for generating shared secrects
-    /// max_bits - secret always has to be smaller than this limit
+    /// max_bits - secret always has to be smaller than this limit, minimum is 8, above 800 can cause performance issues
     /// shares - total number of shares to generate
     /// threshhold - minimum number of shared secrects need to recover original secret
     /// error_level - probablity that one of geneated moduli is not prime 
@@ -105,6 +175,7 @@ impl AsmuthBloomShare {
     /// since they are big we use probabilistic Miller Rabin test.  Problem can arise only
     /// when they are two false primes with GCD bigger the 1.
     pub fn new(max_bits: u16, shares: u16, threshold: u16, error_level: f64) -> Self {
+        assert!(max_bits>=8);
         assert!(shares >= threshold);
         let min_prime_limit = pow(&2.to_biguint().unwrap(), &max_bits.to_biguint().unwrap());
         let n0 = BigPrimesGenerator::new(&min_prime_limit, error_level)
@@ -125,6 +196,8 @@ impl AsmuthBloomShare {
             }
         }
 
+        assert!(n0<primes[0]);
+
         AsmuthBloomShare {
             threshold,
             max_bits,
@@ -134,8 +207,10 @@ impl AsmuthBloomShare {
         }
     }
     /// creates shared secrets
-    pub fn create_share(&mut self, secret: &[u8]) -> ABSharedSecret {
-        assert!(secret.len() * 8 < self.max_bits as usize);
+    pub fn create_share(&mut self, secret: &[u8]) -> ShareResult<ABSharedSecret> {
+        if secret.len() * 8 > self.max_bits as usize {
+            return Err(Error::SecretTooLong);
+        }
         let s = BigUint::from_bytes_be(secret);
         let max_limit = (self.primes[..self.threshold as usize]
             .iter()
@@ -146,10 +221,10 @@ impl AsmuthBloomShare {
             .iter()
             .map(|n| (&mod_s % n, n.clone()))
             .collect();
-        ABSharedSecret {
+        Ok(ABSharedSecret {
             n0: self.n0.clone(),
             shares,
-        }
+        })
     }
 }
 
@@ -202,12 +277,14 @@ impl AsmuthBloomRecover {
         AsmuthBloomRecover { threshold }
     }
     /// recovers original secret from shared secrets
-    pub fn recover_secret(&self, share: &ABSharedSecret) -> Vec<u8> {
-        assert!(share.shares.len() >= self.threshold as usize);
+    pub fn recover_secret(&self, share: &ABSharedSecret) -> ShareResult<Vec<u8>> {
+        if share.shares.len() < self.threshold as usize {
+            return Err(Error::NotEnoughShares)
+        }
 
         let s0 = chinese_remainder(&share.shares);
         let s = s0 % &share.n0;
-        s.to_bytes_be()
+        Ok(s.to_bytes_be())
     }
 }
 
@@ -225,13 +302,13 @@ mod tests {
             let p = &ab.primes;
             assert!(&ab.n0 * &p[3] * &p[4] < &p[0] * &p[1] * &p[2]);
         }
-        let mut share = ab.create_share(b"ABCD");
+        let mut share = ab.create_share(b"ABCD").unwrap();
         assert_eq!((&share).shares.len(), 5);
 
         let abr = AsmuthBloomRecover::new(3);
         share.shares.remove(1);
         share.shares.remove(2);
-        let s = abr.recover_secret(&share);
+        let s = abr.recover_secret(&share).unwrap();
 
         assert_eq!(&s, b"ABCD");
     }
@@ -243,16 +320,39 @@ mod tests {
         let mut ab = AsmuthBloomShare::new(800, 7, 4, 1e-12);
         assert_eq!(ab.primes.len(), 7);
         let my_secret=b"This is very secret secret, top secret that no one should know ever forefer";
-        let mut share = ab.create_share(my_secret);
+        let mut share = ab.create_share(my_secret).unwrap();
         assert_eq!((&share).shares.len(), 7);
 
         let abr = AsmuthBloomRecover::new(4);
         share.shares.remove(1);
         share.shares.remove(2);
         share.shares.remove(4);
-        let s = abr.recover_secret(&share);
+        let s = abr.recover_secret(&share).unwrap();
 
         assert_eq!(&s[..], &my_secret[..]);
+
+
+    }
+
+    #[test]
+    fn test_str_conversion() {
+        let mut ab = AsmuthBloomShare::new(64, 5, 3, 1e-9);
+        let share = ab.create_share(b"password").unwrap();
+        let s = share.to_string();
+        assert!(s.len()>100);
+        print!("{}", &s);
+        let mut share2 = ABSharedSecret::from_str(&s).unwrap();
+        let s2 = share2.to_string();
+        print!("{}", &s2);
+
+        assert_eq!(&s, &s2);
+
+        let abr = AsmuthBloomRecover::new(3);
+        share2.shares.remove(0);
+        share2.shares.remove(3);
+        let s = abr.recover_secret(&share2).unwrap();
+
+        assert_eq!(&s, b"password");
 
 
     }
