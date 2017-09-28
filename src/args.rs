@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 pub fn  parse_args<'a>() -> ArgMatches<'a> {
 App::new("asmuth_bloom_secret_sharing")
-            .version("0.2.0")
+            .version("0.2.1")
             .about("secret sharing with Asmut- Bloom scheme")
             .author("Ivan Zderadicka <ivan@zderadicka.eu>")
             .subcommand(SubCommand::with_name("generate")
