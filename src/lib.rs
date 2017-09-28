@@ -9,6 +9,7 @@ use std::string::ToString;
 use std::str::FromStr;
 
 mod ops;
+mod zero_rle;
 use ops::{miller_rabin_test, pow};
 
 quick_error! {
@@ -20,6 +21,10 @@ quick_error! {
         N0NotSameInAllShares {}
         NoSharesInString {}
         NumberFormatError(err: ParseBigIntError ) {
+            from()
+            cause(err)
+        }
+        ZeroRleDecodingErorr(err: zero_rle::Error) {
             from()
             cause(err)
         }
@@ -99,7 +104,7 @@ impl ToString for ABSharedSecret {
         for  s in &self.shares {
             let v = s.0.to_str_radix(32);
             let n = s.1.to_str_radix(32);
-            res.push_str(&format!("{}:{}:{}", n0, n, v ));
+            res.push_str(&format!("{}:{}:{}", zero_rle::encode(&n0), zero_rle::encode(&n), v));
             res.push_str("\n")
         }
         res
@@ -118,9 +123,9 @@ impl FromStr for ABSharedSecret {
                 return Err(Error::StringFormatError)
             }
 
-            let n0_tmp = BigUint::from_str_radix(parts[0], 32)?;
+            let n0_tmp = BigUint::from_str_radix(&zero_rle::decode(parts[0])?, 32)?;
             let v = BigUint::from_str_radix(parts[2], 32)?;
-            let n = BigUint::from_str_radix(parts[1], 32)?;
+            let n = BigUint::from_str_radix(&zero_rle::decode(parts[1])?, 32)?;
 
             shares.push((v,n));
 
