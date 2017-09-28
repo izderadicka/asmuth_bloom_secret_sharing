@@ -23,6 +23,8 @@ let s = abr.recover_secret(&share).unwrap();
 assert_eq!(&s, b"ABCD");
 ```
 
+[API Documentation](https://docs.rs/asmuth_bloom_secret_sharing)
+
 ## Command line utility
 There is also command line utility `asmuth_bloom_secret_sharing`. Build release version with cargo build --release and you can test as:
 ```bash
