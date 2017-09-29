@@ -1,11 +1,22 @@
 use clap::{ArgMatches,App, SubCommand, Arg};
 use std::str::FromStr;
 
+#[allow(dead_code)]
+pub mod built_info {
+   // The file has been placed there by the build script.
+   include!(concat!(env!("OUT_DIR"), "/built.rs"));
+}
+
+
+
 pub fn  parse_args<'a>() -> ArgMatches<'a> {
-App::new("asmuth_bloom_secret_sharing")
-            .version("0.2.1")
-            .about("secret sharing with Asmut- Bloom scheme")
-            .author("Ivan Zderadicka <ivan@zderadicka.eu>")
+let version = match built_info::GIT_VERSION {
+                Some(ref v) => format!("{} git:{}",built_info::PKG_VERSION,v),
+                None => built_info::PKG_VERSION.into()};
+App::new(built_info::PKG_NAME)
+            .version(&version[..])
+            .about(built_info::PKG_DESCRIPTION)
+            .author(built_info::PKG_AUTHORS)
             .subcommand(SubCommand::with_name("generate")
                 .about("generates shared secrets")
                 .arg(Arg::with_name("secret")
@@ -35,7 +46,7 @@ App::new("asmuth_bloom_secret_sharing")
                 )
             )
             .subcommand(SubCommand::with_name("recover")
-                .about("recovers originalsecret from shared secrets")
+                .about("recovers original secret from shared secrets")
                 .arg(Arg::with_name("share")
                     .value_name("SHARE")
                     .multiple(true)
@@ -61,12 +72,18 @@ quick_error! {
             from()
             cause(err)
         }
+        ThresholdTooSmall {}
     }
 }
 
 pub fn parse_threshold(args: &ArgMatches) -> Result<u16, Error> {
     match args.value_of("threshold") {
-                Some(n) => Ok(u16::from_str(n)?),
+                Some(n) => {
+                    let t = u16::from_str(n)?;
+                    if t<2 {
+                        return Err(Error::ThresholdTooSmall);
+                    }
+                    Ok(t)},
                 None => unreachable!()
     }
 }

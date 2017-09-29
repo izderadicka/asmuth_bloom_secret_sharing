@@ -1,7 +1,7 @@
 [package]
 name = "asmuth_bloom_secret_sharing"
 description = "Asmuth Bloom secret sharing algorithm based on Chinese Reminder Theorem"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["Ivan Zderadicka <ivan@zderadicka.eu>"]
 license = "MIT/Apache-2.0"
 homepage = "https://github.com/izderadicka/asmuth_bloom_secret_sharing"
@@ -12,6 +12,7 @@ keywords = [
   "Asmuth-Bloom",
   "cryptography"
 ]
+build = "build.rs"
 
 
 
@@ -20,4 +21,7 @@ num = "0.1.40"
 quick-error = "1.2.0"
 rand = "0.3"
 clap = "2.25.0"
+
+[build-dependencies]
+built = "0.2"
 
